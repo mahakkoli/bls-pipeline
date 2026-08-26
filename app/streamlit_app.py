@@ -307,7 +307,7 @@ div[data-testid="stButton"] button:hover {
 div[data-testid="stChatInput"] {
     border-radius: 20px;
     max-width: 720px;
-    margin: 0 auto;
+    margin: 24px auto 0 auto;
     box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
 }
 textarea[data-testid="stChatInputTextArea"] {
@@ -494,20 +494,23 @@ def render_stats_bar() -> None:
         )
 
 
-def render_answer_text(answer: str) -> None:
+def _escape_markdown(text: str) -> str:
     # Streamlit's markdown renderer treats bare $...$ as inline LaTeX math,
     # which mangles ordinary currency figures like "$174,900" in the
     # model's prose, and backticks/asterisks trigger code/emphasis
-    # formatting. Escape markdown-special characters so the answer renders
-    # as plain text regardless of what punctuation the model uses.
-    escaped = (
-        answer.replace("\\", "\\\\")
+    # formatting. Escape markdown-special characters so text renders as
+    # plain text regardless of what punctuation the model uses.
+    return (
+        text.replace("\\", "\\\\")
         .replace("$", "\\$")
         .replace("`", "\\`")
         .replace("*", "\\*")
         .replace("_", "\\_")
     )
-    st.markdown(escaped)
+
+
+def render_answer_text(answer: str) -> None:
+    st.markdown(_escape_markdown(answer))
 
 
 def render_chart(chart: dict[str, Any] | None) -> None:
@@ -533,12 +536,19 @@ def render_chart(chart: dict[str, Any] | None) -> None:
     else:
         fig = go.Figure(go.Bar(x=labels, y=values, marker=dict(color="#4f46e5")))
 
+    # The title is rendered as regular markdown, not Plotly's own SVG
+    # title, because Plotly titles don't wrap — a long title just gets
+    # clipped at narrow (mobile) widths instead of flowing to a second
+    # line the way every other text element on this page already does.
+    title = chart.get("title", "")
+    if title:
+        st.markdown(f"**{_escape_markdown(title)}**")
+
     fig.update_layout(
-        title=chart.get("title", ""),
         yaxis_title=value_label,
         template="plotly_white",
         height=340,
-        margin=dict(l=40, r=20, t=50, b=40),
+        margin=dict(l=40, r=20, t=20, b=40),
         showlegend=False,
     )
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
@@ -578,18 +588,19 @@ def main() -> None:
     st.session_state.setdefault("display_messages", [])
     st.session_state.setdefault("anthropic_messages", [])
 
-    if not st.session_state.display_messages:
-        st.write("Try asking:")
-        cols = st.columns(len(STARTER_QUESTIONS))
-        for col, question in zip(cols, STARTER_QUESTIONS):
-            if col.button(question, key=f"starter_{question}"):
-                handle_question(question)
-
+    # 2. Stats bar
     render_stats_bar()
 
-    with st.expander("📊 About the data"):
-        st.markdown(ABOUT_DATA_MARKDOWN)
+    # 3. Input bar — the primary call to action. Wrapped in a container so
+    # it renders inline right here instead of Streamlit's default behavior
+    # of pinning st.chat_input to the bottom of the page.
+    with st.container():
+        question = st.chat_input("Ask anything about jobs, wages, or hiring trends...")
+    if question:
+        handle_question(question)
 
+    # The conversation thread (if any) appears directly below the input,
+    # where results naturally belong right under where you type.
     visible_messages = st.session_state.display_messages[-(MAX_VISIBLE_EXCHANGES * 2) :]
     if len(visible_messages) < len(st.session_state.display_messages):
         st.caption(
@@ -613,10 +624,19 @@ def main() -> None:
                         if col.button(followup, key=f"followup_{i}_{followup}"):
                             handle_question(followup)
 
-    question = st.chat_input("Ask anything about jobs, wages, or hiring trends...")
-    if question:
-        handle_question(question)
+    # 4. Suggested question chips — secondary prompts below the input
+    if not st.session_state.display_messages:
+        st.write("Try asking:")
+        cols = st.columns(len(STARTER_QUESTIONS))
+        for col, starter_question in zip(cols, STARTER_QUESTIONS):
+            if col.button(starter_question, key=f"starter_{starter_question}"):
+                handle_question(starter_question)
 
+    # 5. About the data
+    with st.expander("📊 About the data"):
+        st.markdown(ABOUT_DATA_MARKDOWN)
+
+    # 6. Footer
     st.markdown(FOOTER_HTML, unsafe_allow_html=True)
 
 
