@@ -73,6 +73,67 @@ STARTER_QUESTIONS = [
     "Have Retail Salespersons' wages kept up with inflation since 2021?",
 ]
 
+# (number, label) — note "2019-2024", not "2019-2025": oews_historical's
+# 6 years of data run through 2024, and oews_wages' 2025 snapshot is a
+# separate single-year table, not part of that 6-year trend span.
+STATS = [
+    ("861", "Occupations"),
+    ("6", "Years of Data (2019-2024)"),
+    ("12", "Metro Areas"),
+    ("4", "BLS Datasets"),
+]
+
+# A plain triple-quoted block with single newlines won't do here — CommonMark
+# collapses single line breaks within a paragraph, so the header and its
+# detail lines would all run together on one line. Each line needs an
+# explicit forced break ("  \n"), built here rather than as invisible
+# trailing whitespace in source (which editors/formatters tend to strip).
+_ABOUT_DATA_SECTIONS = [
+    (
+        "OEWS — Current Occupational Wages (2025)",
+        [
+            "650 occupation-metro combinations across 12 major metros + national.",
+            "Wages: mean, median, 10th/25th/75th/90th percentiles.",
+            "Source: BLS Occupational Employment & Wage Statistics",
+        ],
+    ),
+    (
+        "OEWS Historical — Wage Trends (2019-2024)",
+        [
+            "861 occupations at national level, 6 years of history.",
+            "Use for: how has pay in X occupation changed over time?",
+            "Source: BLS OEWS annual flat files",
+        ],
+    ),
+    (
+        "CES — Employment Trends (2021-2026)",
+        [
+            "Monthly job totals by industry, national level.",
+            "Use for: is hiring growing or shrinking in X industry?",
+            "Source: BLS Current Employment Statistics",
+        ],
+    ),
+    (
+        "CPI — Inflation Index (2019-2026)",
+        [
+            "Monthly price index across 4 categories: All Items, Shelter, Medical Care, Food.",
+            "Use for: have wages kept up with inflation?",
+            "Source: BLS Consumer Price Index",
+        ],
+    ),
+]
+
+ABOUT_DATA_MARKDOWN = "\n\n".join(
+    f"**{header}**  \n" + "  \n".join(lines) for header, lines in _ABOUT_DATA_SECTIONS
+)
+
+FOOTER_HTML = (
+    '<div class="app-footer">'
+    "Data sourced from Bureau of Labor Statistics (BLS.gov) &middot; "
+    "Built with Claude + MCP &middot; github.com/mahakkoli/bls-pipeline"
+    "</div>"
+)
+
 FULL_SYSTEM_PROMPT = (
     SYSTEM_PROMPT
     + "\n\nRESPONSE FORMAT:\n"
@@ -244,7 +305,47 @@ div[data-testid="stButton"] button:hover {
     color: #ffffff;
 }
 div[data-testid="stChatInput"] {
-    border-radius: 16px;
+    border-radius: 20px;
+    max-width: 720px;
+    margin: 0 auto;
+    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
+}
+textarea[data-testid="stChatInputTextArea"] {
+    font-size: 1.1rem !important;
+    padding: 16px 18px !important;
+}
+button[data-testid="stChatInputSubmitButton"]:not(:disabled) {
+    background: #4f46e5 !important;
+    border-radius: 10px !important;
+}
+button[data-testid="stChatInputSubmitButton"]:not(:disabled) svg {
+    fill: #ffffff !important;
+}
+.stat-card {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    padding: 18px 12px;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+}
+.stat-card .stat-number {
+    font-size: 1.9rem;
+    font-weight: 800;
+    color: #4f46e5;
+    line-height: 1.2;
+}
+.stat-card .stat-label {
+    font-size: 0.85rem;
+    color: #6b7280;
+    margin-top: 4px;
+}
+.app-footer {
+    text-align: center;
+    color: #9ca3af;
+    font-size: 0.8rem;
+    margin-top: 40px;
+    padding: 16px 0 4px 0;
 }
 </style>
 """
@@ -383,6 +484,16 @@ async def run_turn(
             return await ask_analyst(client, session, messages, question)
 
 
+def render_stats_bar() -> None:
+    cols = st.columns(len(STATS))
+    for col, (number, label) in zip(cols, STATS):
+        col.markdown(
+            f'<div class="stat-card"><div class="stat-number">{number}</div>'
+            f'<div class="stat-label">{label}</div></div>',
+            unsafe_allow_html=True,
+        )
+
+
 def render_answer_text(answer: str) -> None:
     # Streamlit's markdown renderer treats bare $...$ as inline LaTeX math,
     # which mangles ordinary currency figures like "$174,900" in the
@@ -474,6 +585,11 @@ def main() -> None:
             if col.button(question, key=f"starter_{question}"):
                 handle_question(question)
 
+    render_stats_bar()
+
+    with st.expander("📊 About the data"):
+        st.markdown(ABOUT_DATA_MARKDOWN)
+
     visible_messages = st.session_state.display_messages[-(MAX_VISIBLE_EXCHANGES * 2) :]
     if len(visible_messages) < len(st.session_state.display_messages):
         st.caption(
@@ -497,9 +613,11 @@ def main() -> None:
                         if col.button(followup, key=f"followup_{i}_{followup}"):
                             handle_question(followup)
 
-    question = st.chat_input("Ask about wages, employment, or industry trends...")
+    question = st.chat_input("Ask anything about jobs, wages, or hiring trends...")
     if question:
         handle_question(question)
+
+    st.markdown(FOOTER_HTML, unsafe_allow_html=True)
 
 
 if __name__ == "__main__":
