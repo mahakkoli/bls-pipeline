@@ -12,6 +12,13 @@ Each national workbook covers the full BLS occupation hierarchy (total
 -> major -> minor -> broad -> detailed) for every industry combined, at
 the U.S. national level only. We keep just the detailed-occupation rows,
 which is the finest-grained, most directly comparable level.
+
+The raw Excel workbooks aren't committed to the repo (they're excluded
+via .gitignore, and Railway's build has no access to them). Instead, the
+already-processed result of running this script locally is committed as
+data/oews_historical_processed.csv. If the Excel files are present
+(local dev), this script processes them as usual; if not (a fresh
+deploy), it falls back to loading that CSV directly.
 """
 
 from __future__ import annotations
@@ -25,6 +32,9 @@ import pandas as pd
 from ingestion.db import DEFAULT_DB_PATH, get_connection
 
 HISTORICAL_DIR = Path(__file__).resolve().parent.parent / "data" / "oews_historical"
+PROCESSED_CSV_PATH = (
+    Path(__file__).resolve().parent.parent / "data" / "oews_historical_processed.csv"
+)
 FILENAME_PATTERN = re.compile(r"national_M(\d{4})_dl\.xlsx$")
 
 # The national workbooks use area code 99 for their one U.S.-national row
@@ -90,17 +100,29 @@ def load_year(year: int, path: Path) -> pd.DataFrame:
     return df
 
 
-def normalize_records() -> pd.DataFrame:
-    files = discover_files()
-    if not files:
+def load_from_processed_csv() -> pd.DataFrame:
+    if not PROCESSED_CSV_PATH.exists():
         raise FileNotFoundError(
-            f"No national_M<year>_dl.xlsx files found in {HISTORICAL_DIR}"
+            f"No Excel files found in {HISTORICAL_DIR} and no processed-CSV "
+            f"fallback at {PROCESSED_CSV_PATH} either"
         )
+    # Columns and dtypes already match KEEP_COLUMNS + ["year"] — this CSV
+    # is an export of load_year()'s own output, not raw BLS data.
+    return pd.read_csv(PROCESSED_CSV_PATH)
 
-    frames = [load_year(year, path) for year, path in files]
-    df = pd.concat(frames, ignore_index=True)
+
+def normalize_records() -> tuple[pd.DataFrame, str]:
+    files = discover_files()
+    if files:
+        frames = [load_year(year, path) for year, path in files]
+        df = pd.concat(frames, ignore_index=True)
+        source = f"{len(files)} Excel file(s) in {HISTORICAL_DIR}"
+    else:
+        df = load_from_processed_csv()
+        source = f"processed CSV fallback at {PROCESSED_CSV_PATH}"
+
     df["ingested_at"] = datetime.now(timezone.utc)
-    return df
+    return df, source
 
 
 def load_to_duckdb(df: pd.DataFrame, db_path: Path = DEFAULT_DB_PATH) -> int:
@@ -150,10 +172,10 @@ def load_to_duckdb(df: pd.DataFrame, db_path: Path = DEFAULT_DB_PATH) -> int:
 
 
 def run(db_path: Path = DEFAULT_DB_PATH) -> int:
-    df = normalize_records()
+    df, source = normalize_records()
     rows_loaded = load_to_duckdb(df, db_path)
 
-    print(f"Loaded {rows_loaded} rows into {db_path}::{TABLE_NAME}")
+    print(f"Loaded {rows_loaded} rows into {db_path}::{TABLE_NAME} (source: {source})")
     print(f"Year range: {df['year'].min()}-{df['year'].max()}")
     print(f"Distinct occupations: {df['occ_code'].nunique()}")
 
