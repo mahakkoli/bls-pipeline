@@ -4,4 +4,4 @@ buildCommand = "bash build.sh"
 
 [deploy]
 startCommand = "MCP_TRANSPORT=sse python mcp_server/server.py"
-restartPolicyType = "on-failure"
+restartPolicyType = "ON_FAILURE"
