@@ -598,16 +598,11 @@ def main() -> None:
     # 2. Stats bar
     render_stats_bar()
 
-    # 3. Input bar — the primary call to action. Wrapped in a container so
-    # it renders inline right here instead of Streamlit's default behavior
-    # of pinning st.chat_input to the bottom of the page.
-    with st.container():
-        question = st.chat_input("Ask anything about jobs, wages, or hiring trends...")
-    if question:
-        handle_question(question)
+    # 3. Input bar is defined at the bottom of this function (see the
+    # comment there for why) but is numbered here since that's where it
+    # visually renders: fixed to the bottom of the page, below everything.
 
-    # The conversation thread (if any) appears directly below the input,
-    # where results naturally belong right under where you type.
+    # The conversation thread, if any.
     visible_messages = st.session_state.display_messages[-(MAX_VISIBLE_EXCHANGES * 2) :]
     if len(visible_messages) < len(st.session_state.display_messages):
         st.caption(
@@ -645,6 +640,16 @@ def main() -> None:
 
     # 6. Footer
     st.markdown(FOOTER_HTML, unsafe_allow_html=True)
+
+    # Bottom: input bar, fixed/sticky. Calling st.chat_input() unwrapped
+    # (not nested inside a st.container()) is what makes Streamlit pin it
+    # to the bottom of the page — its native behavior. Its position in
+    # the script doesn't affect where it renders; it always floats fixed
+    # at the true bottom of the viewport regardless of call order, which
+    # is why it's fine to call it last, after the footer.
+    question = st.chat_input("Ask anything about jobs, wages, or hiring trends...")
+    if question:
+        handle_question(question)
 
 
 if __name__ == "__main__":
