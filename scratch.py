@@ -1,16 +1,7 @@
-import duckdb
 import pandas as pd
 
-conn = duckdb.connect("data/bls.duckdb")
-
-# Export OEWS
-oews = conn.execute("SELECT * FROM oews_wages").fetchdf()
-oews.to_csv("oews_export.csv", index=False)
-print(f"OEWS exported: {len(oews)} rows")
-
-# Export CES
-ces = conn.execute("SELECT * FROM ces_employment").fetchdf()
-ces.to_csv("ces_export.csv", index=False)
-print(f"CES exported: {len(ces)} rows")
-
-print("\nDone. Open oews_export.csv and ces_export.csv in Excel.")
+for year in [2019, 2024]:
+    filename = f"data/oews_historical/national_M{year}_dl.xlsx"
+    print(f"\n=== {year} COLUMNS ===")
+    df = pd.read_excel(filename, nrows=1)
+    print(df.columns.tolist())

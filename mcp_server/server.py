@@ -30,7 +30,7 @@ ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 if not ANTHROPIC_API_KEY:
     print("Warning: ANTHROPIC_API_KEY not set in .env or environment", flush=True)
 
-DATA_TABLES = ("oews_wages", "ces_employment")
+DATA_TABLES = ("oews_wages", "ces_employment", "oews_historical", "cpi_data")
 
 # information_schema has no notion of column comments here (the ingestion
 # scripts don't set any), so column meaning is documented by hand and
@@ -54,6 +54,20 @@ COLUMN_DESCRIPTIONS: dict[str, str] = {
     "industry_name": "Human-readable industry/supersector name",
     "supersector_code": "2-digit CES supersector code (first 2 digits of industry_code)",
     "seasonal_code": "'S' = seasonally adjusted, 'U' = not seasonally adjusted",
+    "category": "Human-readable CPI category, e.g. 'All Items', 'Shelter', 'Medical Care', 'Food' (cpi_data only)",
+    "month": "Calendar month as an integer 1-12 (cpi_data only)",
+    "area": "BLS national area code for the OEWS flat-file release; always 99, this table has no metro breakdown (oews_historical only)",
+    "area_title": "Always 'U.S.' — this table is national-only (oews_historical only)",
+    "occ_code": "6-digit SOC occupation code WITH the dash, e.g. '15-1252' — note this differs from oews_wages.occupation_code, which has the dash removed (oews_historical only)",
+    "occ_title": "Human-readable occupation name (oews_historical only)",
+    "o_group": "SOC hierarchy level; always 'detailed', the finest-grained occupation level (oews_historical only)",
+    "tot_emp": "Total national employment count for this occupation (oews_historical only)",
+    "a_mean": "Annual mean wage in dollars (oews_historical only)",
+    "a_median": "Annual median wage in dollars (oews_historical only)",
+    "a_pct10": "Annual 10th percentile wage in dollars (oews_historical only)",
+    "a_pct25": "Annual 25th percentile wage in dollars (oews_historical only)",
+    "a_pct75": "Annual 75th percentile wage in dollars (oews_historical only)",
+    "a_pct90": "Annual 90th percentile wage in dollars (oews_historical only)",
 }
 
 # DuckDB file is single-writer; ingestion scripts and this server should
@@ -133,12 +147,13 @@ def search_metadata() -> dict[str, Any]:
 )
 def get_series_values(field: str, search_term: str) -> dict[str, Any]:
     try:
+        placeholders = ", ".join("?" for _ in DATA_TABLES)
         with db_lock:
             column_rows = db.execute(
-                """
+                f"""
                 SELECT table_name, column_name
                 FROM information_schema.columns
-                WHERE table_name IN (?, ?)
+                WHERE table_name IN ({placeholders})
                 """,
                 list(DATA_TABLES),
             ).fetchall()

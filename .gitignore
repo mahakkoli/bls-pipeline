@@ -7,3 +7,4 @@ data/*.duckdb
 data/*.duckdb.wal
 .DS_Store
 .streamlit/secrets.toml
+data/oews_historical/
