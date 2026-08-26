@@ -6,5 +6,14 @@ python -m ingestion.ces
 python -m ingestion.cpi
 python -m ingestion.oews_historical
 
-python verify_db.py
+python -c "
+import duckdb
+conn = duckdb.connect('data/bls.duckdb')
+tables = conn.execute('SHOW TABLES').fetchdf()
+print('=== DB VERIFICATION ===')
+for t in tables['name']:
+    count = conn.execute(f'SELECT COUNT(*) FROM {t}').fetchone()[0]
+    print(f'{t}: {count} rows')
+print('=== VERIFICATION COMPLETE ===')
+"
 
