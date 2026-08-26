@@ -3,5 +3,5 @@ builder = "nixpacks"
 buildCommand = "bash build.sh"
 
 [deploy]
-startCommand = "MCP_TRANSPORT=sse python mcp_server/server.py"
+startCommand = "MCP_TRANSPORT=sse python -m mcp_server.server"
 restartPolicyType = "ON_FAILURE"
