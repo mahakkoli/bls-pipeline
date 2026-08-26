@@ -274,7 +274,8 @@ h1 {
     font-weight: 800;
 }
 [data-testid="stCaptionContainer"] {
-    color: #6b7280;
+    color: #4b5563;
+    font-size: 1rem;
 }
 [data-testid="stChatMessageContent"] {
     border-radius: 16px !important;
@@ -290,7 +291,7 @@ h1 {
     border: 1px solid #e0e7ff;
 }
 div[data-testid="stButton"] button {
-    border-radius: 999px;
+    border-radius: 14px;
     border: 1px solid #c7d2fe;
     background: #eef2ff;
     color: #3730a3;
@@ -306,8 +307,7 @@ div[data-testid="stButton"] button:hover {
 }
 div[data-testid="stChatInput"] {
     border-radius: 20px;
-    max-width: 720px;
-    margin: 24px auto 0 auto;
+    margin-top: 24px;
     box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
 }
 textarea[data-testid="stChatInputTextArea"] {
