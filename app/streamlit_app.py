@@ -25,6 +25,7 @@ import asyncio
 import json
 import os
 import sys
+import traceback
 from pathlib import Path
 from typing import Any
 
@@ -428,6 +429,24 @@ def render_chart(chart: dict[str, Any] | None) -> None:
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
 
+# TEMPORARY DEBUG HELPER — remove once the Streamlit Cloud -> Railway SSE
+# connection issue is diagnosed. anyio task groups (used by both
+# stdio_client and sse_client) wrap connection-setup failures in an
+# ExceptionGroup, and repr()/str() on those often shows only the group's
+# own message, not the real underlying cause — so this walks nested
+# sub-exceptions explicitly to make sure nothing is hidden.
+def _format_debug_traceback(exc: BaseException) -> str:
+    parts = [traceback.format_exc()]
+    sub_exceptions = getattr(exc, "exceptions", None)
+    if sub_exceptions:
+        for i, sub in enumerate(sub_exceptions):
+            parts.append(
+                f"--- nested sub-exception {i} ({type(sub).__name__}) ---\n"
+                + "".join(traceback.format_exception(type(sub), sub, sub.__traceback__))
+            )
+    return "\n".join(parts)
+
+
 def handle_question(question: str) -> None:
     st.session_state.display_messages.append({"role": "user", "text": question})
     with st.spinner("Analyzing BLS data..."):
@@ -436,7 +455,9 @@ def handle_question(question: str) -> None:
                 run_turn(st.session_state.anthropic_messages, question)
             )
         except Exception as exc:
-            print(f"[streamlit_app] turn failed: {exc!r}", file=sys.stderr)
+            debug_tb = _format_debug_traceback(exc)
+            print(f"[streamlit_app] turn failed:\n{debug_tb}", file=sys.stderr)
+            st.session_state.debug_last_error = debug_tb  # TEMPORARY DEBUG
             result = {
                 "answer": (
                     "I couldn't reach the BLS data server just now. Please try "
@@ -461,6 +482,13 @@ def main() -> None:
 
     st.session_state.setdefault("display_messages", [])
     st.session_state.setdefault("anthropic_messages", [])
+
+    # TEMPORARY DEBUG — surfaces the real exception from the last failed MCP
+    # connection attempt, since the chat bubble only ever shows a friendly
+    # message. Remove this block once the SSE connection issue is fixed.
+    if st.session_state.get("debug_last_error"):
+        with st.expander("🐛 DEBUG: last MCP connection error", expanded=True):
+            st.code(st.session_state.debug_last_error, language="text")
 
     if not st.session_state.display_messages:
         st.write("Try asking:")
