@@ -275,7 +275,11 @@ h1 {
 }
 [data-testid="stCaptionContainer"] {
     color: #4b5563;
-    font-size: 1rem;
+}
+.app-subtitle {
+    color: #4b5563;
+    font-size: 1.25rem;
+    margin: 0 0 0.5rem 0;
 }
 [data-testid="stChatMessageContent"] {
     border-radius: 16px !important;
@@ -579,7 +583,10 @@ def main() -> None:
     st.set_page_config(page_title="US Labor Market Explorer", page_icon="📊", layout="wide")
     st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
     st.title("US Labor Market Explorer")
-    st.caption("Natural language Q&A over real Bureau of Labor Statistics data")
+    st.markdown(
+        '<p class="app-subtitle">Natural language Q&amp;A over real Bureau of Labor Statistics data</p>',
+        unsafe_allow_html=True,
+    )
 
     if not ANTHROPIC_API_KEY:
         st.error("ANTHROPIC_API_KEY is not set. Add it to .env and restart the app.")
@@ -633,7 +640,7 @@ def main() -> None:
                 handle_question(starter_question)
 
     # 5. About the data
-    with st.expander("📊 About the data"):
+    with st.expander("About the data"):
         st.markdown(ABOUT_DATA_MARKDOWN)
 
     # 6. Footer
