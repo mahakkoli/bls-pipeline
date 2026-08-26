@@ -197,4 +197,14 @@ def query_database(sql: str) -> dict[str, Any]:
 
 
 if __name__ == "__main__":
-    mcp.run(transport="stdio")
+    # "stdio" (default) is for local dev: a parent process (e.g. the
+    # Streamlit app) spawns this as a subprocess and pipes to it directly.
+    # "sse" is for Railway: nothing there can pipe stdin/stdout to a remote
+    # process, so the deploy sets MCP_TRANSPORT=sse to instead bind an HTTP
+    # server on Railway's assigned $PORT.
+    transport = os.environ.get("MCP_TRANSPORT", "stdio")
+    if transport == "sse":
+        port = int(os.environ.get("PORT", 8000))
+        mcp.run(transport="sse", host="0.0.0.0", port=port)
+    else:
+        mcp.run(transport="stdio")

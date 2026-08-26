@@ -2,11 +2,15 @@
 
 A chat UI backed by Claude. The three data tools (search_metadata,
 get_series_values, query_database) are called over the real MCP
-protocol against mcp_server/server.py, spawned as a stdio subprocess —
-this app never touches DuckDB directly. A fresh MCP session is opened
-per question and closed when the turn finishes, which keeps the async
-lifecycle simple under Streamlit's rerun-per-interaction model (no
-long-lived subprocess/session has to survive across reruns).
+protocol against mcp_server/server.py — this app never touches DuckDB
+directly. Locally that server is spawned as a stdio subprocess; in
+production (MCP_SERVER_URL set) it instead connects over SSE to the
+server already running on Railway, since Streamlit Cloud and Railway
+are separate hosts with no way to spawn/pipe across them. Either way, a
+fresh MCP session is opened per question and closed when the turn
+finishes, which keeps the async lifecycle simple under Streamlit's
+rerun-per-interaction model (no long-lived subprocess/session has to
+survive across reruns).
 
 Claude's final answer is always a structured `format_response` tool
 call, not free text, so the UI can reliably render an answer, an
@@ -29,6 +33,7 @@ import plotly.graph_objects as go
 import streamlit as st
 from dotenv import load_dotenv
 from mcp import ClientSession, StdioServerParameters
+from mcp.client.sse import sse_client
 from mcp.client.stdio import stdio_client
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -39,6 +44,13 @@ from mcp_server.prompts import SYSTEM_PROMPT  # noqa: E402
 
 load_dotenv(PROJECT_ROOT / ".env")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
+
+# Local dev: spawn mcp_server/server.py as a stdio subprocess (default).
+# Production (Streamlit Cloud -> Railway): set MCP_SERVER_URL to the
+# deployed server's SSE endpoint (e.g. "https://<app>.up.railway.app/sse")
+# and this connects over HTTP instead — nothing on Streamlit Cloud can
+# spawn or pipe to a process running on a separate Railway host.
+MCP_SERVER_URL = os.environ.get("MCP_SERVER_URL")
 
 MCP_SERVER_PARAMS = StdioServerParameters(
     command=sys.executable,
@@ -343,14 +355,23 @@ async def ask_analyst(
     return messages, _normalize_result({})
 
 
+def _mcp_connection():
+    if MCP_SERVER_URL:
+        return sse_client(MCP_SERVER_URL)
+    return stdio_client(MCP_SERVER_PARAMS)
+
+
 async def run_turn(
     messages: list[dict[str, Any]], question: str
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Spawn the MCP server as a stdio subprocess, run one full turn against
-    it, and tear it back down. A fresh process per turn avoids having to
-    keep an async subprocess/session alive across Streamlit's
-    rerun-per-interaction script model."""
-    async with stdio_client(MCP_SERVER_PARAMS) as (read, write):
+    """Connect to the MCP server, run one full turn against it, and tear
+    the connection back down. Locally this spawns mcp_server/server.py as
+    a stdio subprocess; in production (MCP_SERVER_URL set) it connects to
+    the already-running Railway deployment over SSE instead. Either way, a
+    fresh connection per turn avoids having to keep an async
+    subprocess/session alive across Streamlit's rerun-per-interaction
+    script model."""
+    async with _mcp_connection() as (read, write):
         async with ClientSession(read, write) as session:
             await session.initialize()
             client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
