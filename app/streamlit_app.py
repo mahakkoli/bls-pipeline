@@ -62,10 +62,15 @@ MODEL = "claude-sonnet-5"
 MAX_TOOL_ITERATIONS = 6
 MAX_VISIBLE_EXCHANGES = 3  # keep the UI from getting cluttered on a long chat
 
+# One per dataset, so the buttons themselves communicate what the app can
+# do: current metro wages (oews_wages), national industry trends
+# (ces_employment), multi-year occupation wage history (oews_historical),
+# and inflation-adjusted real wages (oews_historical + cpi_data).
 STARTER_QUESTIONS = [
     "How do software developer salaries in Seattle compare to the national average?",
     "What's the employment trend in the information sector over the past year?",
-    "How does Marketing Manager pay differ between Chicago and Atlanta?",
+    "How has Registered Nurses' pay changed nationally from 2019 to 2024?",
+    "Have Retail Salespersons' wages kept up with inflation since 2021?",
 ]
 
 FULL_SYSTEM_PROMPT = (
