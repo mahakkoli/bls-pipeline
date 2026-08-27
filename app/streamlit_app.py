@@ -61,6 +61,7 @@ MCP_SERVER_PARAMS = StdioServerParameters(
 MODEL = "claude-sonnet-5"
 MAX_TOOL_ITERATIONS = 6
 MAX_VISIBLE_EXCHANGES = 3  # keep the UI from getting cluttered on a long chat
+MAX_QUESTIONS_PER_SESSION = 10  # cap Anthropic/BLS API usage per browser session
 
 # One per dataset, so the buttons themselves communicate what the app can
 # do: current metro wages (oews_wages), national industry trends
@@ -559,6 +560,13 @@ def render_chart(chart: dict[str, Any] | None) -> None:
 
 
 def handle_question(question: str) -> None:
+    if st.session_state.question_count >= MAX_QUESTIONS_PER_SESSION:
+        # The UI-level gate in main() should prevent reaching here at all
+        # (chips/input are hidden once the limit hits), but guard anyway
+        # in case a stale button from a prior render still fires.
+        return
+    st.session_state.question_count += 1
+
     st.session_state.display_messages.append({"role": "user", "text": question})
     with st.spinner("Analyzing BLS data..."):
         try:
@@ -594,6 +602,7 @@ def main() -> None:
 
     st.session_state.setdefault("display_messages", [])
     st.session_state.setdefault("anthropic_messages", [])
+    st.session_state.setdefault("question_count", 0)
 
     # 2. Stats bar
     render_stats_bar()
@@ -625,6 +634,17 @@ def main() -> None:
                     for col, followup in zip(cols, followups):
                         if col.button(followup, key=f"followup_{i}_{followup}"):
                             handle_question(followup)
+
+    # Rate limit: once the session hits MAX_QUESTIONS_PER_SESSION, stop
+    # here so nothing below this line renders — no chips, no input bar —
+    # while leaving the conversation above still visible. Using >= (not
+    # the > 10 in the original request) so the limit is exactly 10 asked
+    # questions: question_count is incremented inside handle_question
+    # before this check runs on the next rerun, so a strict > would let
+    # an 11th question through.
+    if st.session_state.question_count >= MAX_QUESTIONS_PER_SESSION:
+        st.warning("You've reached the limit for this session. Refresh to continue.")
+        st.stop()
 
     # 4. Suggested question chips — secondary prompts below the input
     if not st.session_state.display_messages:
