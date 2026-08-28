@@ -58,7 +58,7 @@ MCP_SERVER_PARAMS = StdioServerParameters(
     cwd=str(PROJECT_ROOT),
 )
 
-MODEL = "claude-sonnet-5"
+MODEL = "claude-haiku-4-5-20251001"
 MAX_TOOL_ITERATIONS = 6
 MAX_VISIBLE_EXCHANGES = 3  # keep the UI from getting cluttered on a long chat
 MAX_QUESTIONS_PER_SESSION = 10  # cap Anthropic/BLS API usage per browser session
